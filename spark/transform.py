@@ -24,7 +24,7 @@ def main():
         spark = SparkSession.builder \
             .appName("ETL Transform") \
             .config("fs.s3a.access.key", "admin") \
-            .config("fs.s3a.secret.key", "admin") \
+            .config("fs.s3a.secret.key", "admin_password") \
             .config("fs.s3a.endpoint",  f"http://{MINIO_IP_ADDRESS}:9000") \
             .config("fs.s3a.connection.ssl.enabled", "false") \
             .config("fs.s3a.path.style.access", "true") \

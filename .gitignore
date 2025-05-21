@@ -1,2 +1,7 @@
 .env
 data/
+
+logs/
+working-dir/
+preprocessors/
+__pycache__/

@@ -65,7 +65,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     # yamllint disable rule:line-length
-    # Use simple http server on scheduler for health checks
+    # Use simple http server on scheduler for health checks     
     # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
     # yamllint enable rule:line-length
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
@@ -100,6 +100,7 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+      - ./mlflow/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 10s
@@ -327,14 +328,15 @@ services:
     container_name: mlflow
     ports:
       - "5000:5000"
-    volumes:
-      - ./mlruns:/mlflow/mlruns
     environment:
       - GIT_PYTHON_REFRESH=quiet
       - BACKEND_STORE_URI=postgresql+psycopg2://airflow:airflow@postgres/mlflow
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-admin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-admin_password}   
     command: >
       /bin/sh -c "pip install psycopg2-binary cryptography &&
-      mlflow server --backend-store-uri postgresql+psycopg2://airflow:airflow@postgres/mlflow --default-artifact-root /mlflow/mlruns --host 0.0.0.0 --port 5000"
+      mlflow server --backend-store-uri postgresql+psycopg2://airflow:airflow@postgres/mlflow --default-artifact-root s3://mlflow-artifacts --host 0.0.0.0 --port 5000"
     depends_on:
       <<: *airflow-common-depends-on
 

@@ -21,8 +21,8 @@ ENV PATH=$JAVA_HOME/bin:$PATH
 USER airflow
 
 RUN pip install --no-cache-dir \
-    joblib \
-    scikit-learn
+    airflow-provider-mlflow \
+    pandas scikit-learn torch deepctr-torch joblib mlflow\
     "apache-airflow==2.10.2" \
     pyspark==3.5.3 \
     apache-airflow-providers-apache-spark==4.11.2 \

@@ -4,4 +4,5 @@ data/
 logs/
 working-dir/
 preprocessors/
+mlruns/
 __pycache__/

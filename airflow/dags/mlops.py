@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from datetime import datetime, timedelta
-from train import train_deepfm_model
+from train import train_mlp_model
 from validate import validate_model
 from deploy import deploy_model
 
@@ -31,7 +31,7 @@ with DAG(
 
     train_task = PythonOperator(
         task_id='train_model',
-        python_callable=train_deepfm_model
+        python_callable=train_mlp_model
     )
 
     validate_task = PythonOperator(
@@ -47,7 +47,7 @@ with DAG(
     create_model_version = CreateModelVersionOperator(
         task_id="create_model_version",
         mlflow_conn_id="mlflow_conn",
-        name="DeepFM",
+        name="MLP_practice",
         source="runs:/{{ ti.xcom_pull(task_ids='validate_model', key='validated_run_id') }}/model",
         run_id="{{ ti.xcom_pull(task_ids='validate_model', key='validated_run_id') }}"
     )
@@ -55,7 +55,7 @@ with DAG(
     transition_stage = TransitionModelVersionStageOperator(
         task_id="transition_model_stage",
         mlflow_conn_id="mlflow_conn",
-        name="DeepFM",
+        name="MLP_practice",
         version="{{ ti.xcom_pull(task_ids='create_model_version')['model_version']['version'] }}",
         stage="Production",
         archive_existing_versions=True

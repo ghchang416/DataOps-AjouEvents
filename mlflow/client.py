@@ -27,11 +27,11 @@ for feat in sparse_features:
 
 scaler = joblib.load(os.path.join(ENCODER_DIR, "minmax_scaler.pkl"))
 
-# ✅ MinMax Scaling (hour은 float로 유지)
-data[dense_features] = scaler.transform(data[dense_features])
 # ✅ 전처리 적용
 for feat in sparse_features:
     data[feat] = encoders[feat].transform(data[feat].astype(str))
+# ✅ MinMax Scaling (hour은 float로 유지)
+data[dense_features] = scaler.transform(data[dense_features])
 
         
 # # ✅ 예측 API 주소

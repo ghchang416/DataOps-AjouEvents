@@ -1,13 +1,15 @@
+import logging
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from mlflow_provider.hooks.client import MLflowClientHook
 
 from mlflow.tracking import MlflowClient
 import mlflow.pytorch
 import torch
+import torch.nn as nn
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
-from deepctr_torch.models import DeepFM
-from deepctr_torch.inputs import SparseFeat, DenseFeat, get_feature_names
+import pandas as pd
 
 cast_type = {
     "id": "int64",
@@ -36,88 +38,111 @@ cast_type = {
     "hour": "float64"
 }
 
-def train_deepfm_model(**kwargs):
+def train_mlp_model(**kwargs):
     import os
     os.environ["AWS_ACCESS_KEY_ID"] = "admin"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "admin_password"
     os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://minio:9000"
 
-    # 1. PostgreSQL에서 feature store 불러오기
+    # 1. 데이터 로드
     pg_hook = PostgresHook(postgres_conn_id='postgres_conn')
     df = pg_hook.get_pandas_df("SELECT * FROM feature_store_table")
     df = df.astype(cast_type)
-
+    
+    
     target = ['click']
     dense_features = ['hour']
     sparse_features = [col for col in df.columns if col not in dense_features + target]
 
-    fixlen_feature_columns = (
-        [SparseFeat(feat, vocabulary_size=df[feat].nunique(), embedding_dim=8) for feat in sparse_features] +
-        [DenseFeat(feat, 1) for feat in dense_features]
-    )
-    feature_names = get_feature_names(fixlen_feature_columns)
+    # One-hot encoding
+    df = pd.get_dummies(df, columns=sparse_features)
+    df = df.astype('float32') 
+    feature_names = [col for col in df.columns if col not in target]
+    X = df[feature_names].values
+    y = df[target].values
+    
+    feature_names = [col for col in df.columns if col not in target]
+    import joblib
+    joblib.dump(feature_names, "preprocessors/feature_names.pkl")
+    
+    # split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    train, test = train_test_split(df, test_size=0.2, random_state=42)
-    train_input = {name: train[name].values for name in feature_names}
-    test_input = {name: test[name].values for name in feature_names}
+    # Tensor
+    X_train = torch.tensor(X_train, dtype=torch.float32)
+    X_test = torch.tensor(X_test, dtype=torch.float32)
+    y_train = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
+    y_test = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-    # 2. MLflow Hook 및 Client 준비
+    # 2. MLflow client
     mlflow_hook = MLflowClientHook(mlflow_conn_id='mlflow_conn')
     mlflow_hook.get_conn()
     tracking_uri = mlflow_hook.base_url
     client = MlflowClient(tracking_uri=tracking_uri)
 
-    # 3. Experiment 확인 및 생성
-    experiment_name = "DeepFM_practice"
+    # 3. Experiment 생성
+    experiment_name = "MLP_practice"
     experiment = client.get_experiment_by_name(experiment_name)
     if experiment:
         experiment_id = experiment.experiment_id
     else:
         experiment_id = client.create_experiment(
             name=experiment_name,
-            artifact_location="s3://mlflow-artifacts/DeepFM"
+            artifact_location="s3://mlflow-artifacts/MLP"
         )
 
-    # 4. Run 생성
+    # 4. Run
     run = client.create_run(experiment_id=experiment_id)
     run_id = run.info.run_id
 
-    # 5. 모델 학습
+    # 5. 모델 정의 (기초 MLP)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = DeepFM(
-        linear_feature_columns=fixlen_feature_columns,
-        dnn_feature_columns=fixlen_feature_columns,
-        dnn_dropout=0.7,
-        dnn_use_bn=True,
-        task='binary',
-        device=device
-    )
+    model = nn.Sequential(
+        nn.Linear(X_train.shape[1], 128),
+        nn.ReLU(),
+        nn.Dropout(0.5),
+        nn.Linear(128, 64),
+        nn.ReLU(),
+        nn.Linear(64, 1),
+        nn.Sigmoid()
+    ).to(device)
 
-    model.compile("adam", "binary_crossentropy", metrics=["binary_crossentropy", "auc"])
-    model.fit(train_input, train[target].values,
-              batch_size=1024, epochs=5, verbose=2, validation_split=0.1)
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    # 6. 예측 및 평가
-    pred_ans = model.predict(test_input)
-    auc = roc_auc_score(test[target].values, pred_ans)
+    # 6. 학습
+    model.train()
+    for epoch in range(5):
+        optimizer.zero_grad()
+        outputs = model(X_train.to(device))
+        loss = criterion(outputs, y_train.to(device))
+        loss.backward()
+        optimizer.step()
 
-    # 7. Metric, Param, Tag 기록
+    # 7. 평가
+    model.eval()
+    with torch.no_grad():
+        pred = model(X_test.to(device)).cpu().numpy()
+    auc = roc_auc_score(y_test.numpy(), pred)
+
+    # 8. 기록
     client.log_metric(run_id, "test_auc", auc)
-    client.log_param(run_id, "batch_size", 1024)
     client.log_param(run_id, "epochs", 5)
-    client.set_tag(run_id, "model", "DeepFM")
+    client.log_param(run_id, "model_type", "MLP")
 
-    # 8. 모델 artifact 저장
-    import mlflow
+    # 9. 저장
     mlflow.set_tracking_uri(tracking_uri)
     with mlflow.start_run(run_id=run_id):
         mlflow.pytorch.log_model(
             model,
             artifact_path="model"
         )
-
-    # 9. XCom으로 run_id 전달
+    mlflow.register_model(
+        model_uri=f"runs:/{run_id}/model",
+        name="MLP_practice"
+    )
+    # 10. XCom 전달
     kwargs['ti'].xcom_push(key="run_id", value=run_id)
 
 if __name__ == "__main__":
-    train_deepfm_model()
+    train_mlp_model()

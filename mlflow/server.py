@@ -4,24 +4,28 @@ import pandas as pd
 import mlflow.pyfunc
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import time, os
+import time
 from prometheus_client import Counter, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
+import torch
 
 # MLflow 설정
 MLFLOW_TRACKING_URI = "http://localhost:5000"
-MODEL_NAME = "DeepFM"
+MODEL_NAME = "MLP_practice"
 MODEL_STAGE = "Production"
 
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 # 글로벌 모델 객체
 model = None
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_latest_model():
     global model
     model_uri = f"models:/{MODEL_NAME}/{MODEL_STAGE}"
     model = mlflow.pytorch.load_model(model_uri)
+    model.to(device)
+    model.eval()
     print(f"✅ Latest model loaded from: {model_uri}")
 
 # FastAPI 앱 생성
@@ -33,7 +37,7 @@ REQUEST_COUNT = Counter("prediction_requests_total", "Total number of prediction
 PREDICTION_OUTPUT = Histogram("prediction_output", "Distribution of prediction values")
 PREDICTION_LATENCY = Histogram("prediction_latency", "Latency of prediction")
 
-# 모델 입력 스키마 정의
+# 모델 입력 스키마 정의 (client.py와 동일)
 class InputData(BaseModel):
     id: int
     C1: int
@@ -59,7 +63,6 @@ class InputData(BaseModel):
     C21: int
     hour: float
 
-# 서버 시작 시 모델 로드
 @app.on_event("startup")
 async def startup_event():
     try:
@@ -67,10 +70,8 @@ async def startup_event():
     except Exception as e:
         print(f"❌ Failed to load model at startup: {e}")
 
-# 예측 API
 @app.post("/predict")
 async def predict(input: InputData):
-    print("🔍 Received input:", input)
     if model is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
 
@@ -79,36 +80,48 @@ async def predict(input: InputData):
 
     df = pd.DataFrame([input.dict()])
 
-    # 타입 정제
-    int32_feats = [
-        "site_id", "site_domain", "site_category",
-        "app_id", "app_domain", "app_category",
-        "device_id", "device_ip", "device_model"
-    ]
-    int64_feats = list(set(df.columns) - set(int32_feats) - {"hour"})
-    float64_feats = ["hour"]
+    # 입력 데이터 정제
+    # int32_feats = [
+    #     "site_id", "site_domain", "site_category",
+    #     "app_id", "app_domain", "app_category",
+    #     "device_id", "device_ip", "device_model"
+    # ]
+    # int64_feats = list(set(df.columns) - set(int32_feats) - {"hour"})
+    # float64_feats = ["hour"]
 
-    df = df.astype({
-        **{col: "int32" for col in int32_feats},
-        **{col: "int64" for col in int64_feats},
-        **{col: "float64" for col in float64_feats}
-    })
+    # df = df.astype({
+    #     **{col: "int32" for col in int32_feats},
+    #     **{col: "int64" for col in int64_feats},
+    #     **{col: "float64" for col in float64_feats}
+    # })
+    import joblib
+    with open("preprocessors/feature_names.pkl", "rb") as f:
+        feature_names = joblib.load(f)
+        # ✅ One-hot encoding
 
-    from deepctr_torch.inputs import get_feature_names
-    feature_names = get_feature_names(model.feature_dim_dict["feature_columns"])  # 또는 따로 저장해둔 fixlen_feature_columns
-    model_input = [df[feat].values for feat in feature_names]
+    missing_cols = [col for col in feature_names if col not in df.columns]
+    if missing_cols:
+        # 0.0으로 채운 열들을 한 번에 생성
+        missing_df = pd.DataFrame(0.0, index=df.index, columns=missing_cols)
+        df = pd.concat([df, missing_df], axis=1)
+
+    # ✅ 컬럼 순서 학습 기준에 맞춤
+    df = df[feature_names]
+
+    # ✅ float32로 변환
+    df = df.astype("float32")
+
     # 예측
-    pred_arr = model.predict(model_input)
-    prediction = pred_arr[0].item() if hasattr(pred_arr[0], "item") else float(pred_arr[0])
-    print(prediction)
+    input_tensor = torch.tensor(df.values, dtype=torch.float32).to(device)
+    with torch.no_grad():
+        pred = model(input_tensor).cpu().numpy()[0][0]
 
     # Prometheus 기록
-    PREDICTION_OUTPUT.observe(prediction)
+    PREDICTION_OUTPUT.observe(pred)
     PREDICTION_LATENCY.observe(time.time() - start_time)
 
-    return {"prediction": prediction}
+    return {"prediction": float(pred)}
 
-# 모델 재로드 API
 @app.post("/reload-model")
 async def reload_model():
     try:

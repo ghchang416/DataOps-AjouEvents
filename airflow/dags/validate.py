@@ -23,7 +23,7 @@ def validate_model(**context):
 
     # 2. 프로덕션 모델 AUC 가져오기
     try:
-        versions = client.get_latest_versions("DeepFM", stages=["Production"])
+        versions = client.get_latest_versions("MLP_practice", stages=["Production"])
         prod_run_id = versions[0].run_id
 
         prod_data = client.get_run(prod_run_id).data

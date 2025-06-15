@@ -1,0 +1,10 @@
+pandas
+numpy
+fastapi
+pydantic
+prometheus_client
+prometheus-fastapi-instrumentator
+boto3
+uvicorn
+torch
+deepctr_torch

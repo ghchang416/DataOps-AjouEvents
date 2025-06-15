@@ -4,6 +4,7 @@ import joblib
 import os
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from datetime import timedelta
+import logging
 
 def build_feature_store(**context):
     # 1. execution_date 받아오기
@@ -54,7 +55,9 @@ def build_feature_store(**context):
         if os.path.exists(encoder_path):
             lbe = joblib.load(encoder_path)
             raw_data[feat] = lbe.transform(raw_data[feat].astype(str))
+            logging.info(f"{feat} is encorded successfully")
         else:
+            logging.info(f"{feat} is not founded")
             lbe = LabelEncoder()
             raw_data[feat] = lbe.fit_transform(raw_data[feat].astype(str))
             joblib.dump(lbe, encoder_path)
@@ -63,6 +66,7 @@ def build_feature_store(**context):
     if os.path.exists(scaler_path):
         mms = joblib.load(scaler_path)
         raw_data[dense_features] = mms.transform(raw_data[dense_features])
+        logging.info(f"{dense_features} is encorded successfully")
     else:
         mms = MinMaxScaler()
         raw_data[dense_features] = mms.fit_transform(raw_data[dense_features])

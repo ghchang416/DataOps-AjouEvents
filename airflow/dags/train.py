@@ -41,7 +41,7 @@ def train_deepfm_model(**kwargs):
     os.environ["AWS_ACCESS_KEY_ID"] = "admin"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "admin_password"
     os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://minio:9000"
-    
+
     # 1. PostgreSQL에서 feature store 불러오기
     pg_hook = PostgresHook(postgres_conn_id='postgres_conn')
     df = pg_hook.get_pandas_df("SELECT * FROM feature_store_table")
@@ -64,9 +64,10 @@ def train_deepfm_model(**kwargs):
     # 2. MLflow Hook 및 Client 준비
     mlflow_hook = MLflowClientHook(mlflow_conn_id='mlflow_conn')
     mlflow_hook.get_conn()
-    client = MlflowClient(tracking_uri=mlflow_hook.base_url)
+    tracking_uri = mlflow_hook.base_url
+    client = MlflowClient(tracking_uri=tracking_uri)
 
-    # 3. Experiment 존재 여부 확인
+    # 3. Experiment 확인 및 생성
     experiment_name = "DeepFM_practice"
     experiment = client.get_experiment_by_name(experiment_name)
     if experiment:
@@ -81,7 +82,7 @@ def train_deepfm_model(**kwargs):
     run = client.create_run(experiment_id=experiment_id)
     run_id = run.info.run_id
 
-    # 5. 학습
+    # 5. 모델 학습
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = DeepFM(
         linear_feature_columns=fixlen_feature_columns,
@@ -106,11 +107,14 @@ def train_deepfm_model(**kwargs):
     client.log_param(run_id, "epochs", 5)
     client.set_tag(run_id, "model", "DeepFM")
 
-    # 8. 모델 artifact 저장 및 등록
-    mlflow.pytorch.log_model(
-        model,
-        artifact_path="model"
-    )
+    # 8. 모델 artifact 저장
+    import mlflow
+    mlflow.set_tracking_uri(tracking_uri)
+    with mlflow.start_run(run_id=run_id):
+        mlflow.pytorch.log_model(
+            model,
+            artifact_path="model"
+        )
 
     # 9. XCom으로 run_id 전달
     kwargs['ti'].xcom_push(key="run_id", value=run_id)

@@ -24,8 +24,8 @@ def choose_deploy_path(**kwargs):
 with DAG(
     dag_id='MLOps',
     default_args=default_args,
-    start_date=datetime(2025, 5, 21),
-    schedule_interval='@weekly',
+    start_date=datetime(2025, 5, 1),
+    schedule_interval=None,
     catchup=False
 ) as dag:
 

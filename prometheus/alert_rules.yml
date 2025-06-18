@@ -1,0 +1,19 @@
+groups:
+- name: model-monitoring-rules
+  rules:
+  - alert: LowPredictionOutput
+    expr: prediction_output_bucket{le="0.75"} > 5  # 낮은 예측 결과가 50번 이상
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Model prediction values are too low"
+      description: "Prediction values have dropped significantly. Consider retraining."
+
+  - alert: HighLatency
+    expr: prediction_latency_seconds_bucket{le="1.0"} > 100
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Prediction latency is too high"

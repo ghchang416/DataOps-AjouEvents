@@ -2,10 +2,11 @@
 import mlflow.pytorch
 import pandas as pd
 import mlflow.pyfunc
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import time
 from prometheus_client import Counter, Histogram
+import requests
 from prometheus_fastapi_instrumentator import Instrumentator
 import torch
 
@@ -69,6 +70,18 @@ async def startup_event():
         load_latest_model()
     except Exception as e:
         print(f"❌ Failed to load model at startup: {e}")
+
+@app.post("/alert")
+async def receive_alert(req: Request):
+    data = await req.json()
+
+    response = requests.post(
+        "http://airflow-webserver:8080/api/v1/dags/MLOps/dagRuns",
+        auth=("airflow", "airflow"),
+        json={"conf": {}, "dag_run_id": "alert-triggered"}
+    )
+    return {"status": response.status_code}
+
 
 @app.post("/predict")
 async def predict(input: InputData):

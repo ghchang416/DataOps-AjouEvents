@@ -1,0 +1,7 @@
+route:
+  receiver: airflow_webhook
+
+receivers:
+  - name: airflow_webhook
+    webhook_configs:
+      - url: "http://mlflow:8000/alert"

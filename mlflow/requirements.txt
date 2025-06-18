@@ -7,4 +7,3 @@ prometheus-fastapi-instrumentator
 boto3
 uvicorn
 torch
-deepctr_torch

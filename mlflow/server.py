@@ -108,7 +108,7 @@ async def predict(input: InputData):
     #     **{col: "float64" for col in float64_feats}
     # })
     import joblib
-    with open("preprocessors/feature_names.pkl", "rb") as f:
+    with open("/opt/preprocessors/feature_names.pkl", "rb") as f:
         feature_names = joblib.load(f)
         # ✅ One-hot encoding
 

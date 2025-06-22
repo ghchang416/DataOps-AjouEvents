@@ -13,7 +13,7 @@ def raw_data_upload_to_minio(**context):
         end_time = start_time + timedelta(minutes=5)
 
         # Read source data
-        df = pd.read_csv('/opt/airflow/data/raw.csv', parse_dates=['timestamp'])
+        df = pd.read_csv('/opt/data/raw.csv', parse_dates=['timestamp'])
 
         # Filter data for the current interval
         mask = (df['timestamp'] >= start_time) & (df['timestamp'] < end_time)

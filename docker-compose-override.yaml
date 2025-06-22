@@ -1,0 +1,101 @@
+services:
+  minio:
+    hostname: minio
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: minio
+    restart: always
+    volumes:
+      - minio-data:/data
+    ports:
+      - 9000:9000
+      - 9001:9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin_password}
+      MINIO_BUCKETS: ${MINIO_BUCKET:-raw-data}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ${PROMETHEUS_PROJ_DIR:-./prometheus}/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ${PROMETHEUS_PROJ_DIR:-./prometheus}/alert_rules.yml:/etc/prometheus/alert_rules.yml
+    command: 
+      - "--log.level=debug"
+      - "--config.file=/etc/prometheus/prometheus.yml"
+
+  alertmanager:
+    image: prom/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ${ALERTMANAGER_PROJ_DIR:-./alertmanager}/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.20.2
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+      - "8000:8000"
+    volumes:
+      - ${PROJ_DIR:-.}/preprocessor:/opt/preprocessor
+      - ${MLFLOW_PROJ_DIR:-./mlflow}/:/mlflow/work/
+    environment:
+      - GIT_PYTHON_REFRESH=quiet
+      - BACKEND_STORE_URI=postgresql+psycopg2://airflow:airflow@postgres/mlflow
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-admin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-admin_password}
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  spark:
+    image: bitnami/spark:3.5.3
+    volumes:
+      - ${PROJ_DIR:-.}/preprocessor:/opt/preprocessor
+      - ${PROJ_DIR:-.}/etl:/opt/etl
+      - ${SPARK_PROJ_DIR:-./spark}:/opt/bitnami/spark/work
+      - ${SPARK_PROJ_DIR:-./spark}/spark_conf/log4j2.properties:/opt/bitnami/spark/conf/log4j2.properties
+      - ${SPARK_PROJ_DIR:-./spark}/spark_conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ${SPARK_PROJ_DIR:-./spark}/spark-events:/tmp/spark-events
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    env_file:
+      - .env
+    user: "root"
+    ports:
+      - '8081:8080'
+      - '18080:18080'
+      - '4040:4040'
+
+  spark-worker:
+    image: bitnami/spark:3.5.3
+    volumes:
+      - ${SPARK_PROJ_DIR:-./spark}/working-dir:/opt/bitnami/spark/work
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    user: "root" 
+
+volumes:
+  postgres-db-volume:
+  minio-data:

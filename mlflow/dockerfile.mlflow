@@ -1,0 +1,14 @@
+FROM ghcr.io/mlflow/mlflow:v2.20.2
+
+COPY requirements.txt /mlflow/requirements.txt
+RUN pip install --no-cache-dir -r /mlflow/requirements.txt
+
+COPY server.py /mlflow/server.py
+
+CMD /bin/sh -c "\
+    mlflow server \
+      --backend-store-uri ${BACKEND_STORE_URI} \
+      --default-artifact-root ${MLFLOW_DEFAULT_ARTIFACT_ROOT:-s3://mlflow-artifacts} \
+      --host 0.0.0.0 --port 5000 & \
+    uvicorn server:app --host 0.0.0.0 --port 8000 --reload --app-dir /mlflow & \
+    wait"

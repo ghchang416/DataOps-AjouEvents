@@ -7,3 +7,6 @@ prometheus-fastapi-instrumentator
 boto3
 uvicorn
 torch
+
+psycopg2-binary
+cryptography

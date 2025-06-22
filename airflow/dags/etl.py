@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
-from extract import raw_data_upload_to_minio
-from load import build_feature_store
+from etl.extract import raw_data_upload_to_minio
+from etl.load import build_feature_store
 
 default_args = {
     'owner': 'airflow',
@@ -31,7 +31,7 @@ with DAG(
         name='Data_Transform',
         executor_memory='1G',
         total_executor_cores=2,
-        application='/opt/bitnami/spark/work/transform.py',
+        application='/opt/etl/transform.py',
         conn_id='spark_conn', 
         application_args=["{{ execution_date }}"],
         packages='org.postgresql:postgresql:42.7.2,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262',

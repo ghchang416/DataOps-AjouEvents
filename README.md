@@ -7,7 +7,7 @@
 ## 🔧 시스템 아키텍처 (서비스 중심)
 
 <p align="center">
-  <img src="images/system-architecture.png" alt="system-architecture" width="700"/>
+  <img src="images/system-architecture.png" alt="system-architecture" width="1000"/>
 </p>
 
 위 그림은 사용자 서비스에서 발생하는 이벤트가 어떻게 AI 모델 학습 및 추천에 연결되는지를 설명합니다.
@@ -24,7 +24,7 @@
 ## 🧠 MLOps 파이프라인 아키텍처 (모델 생애주기 중심)
 
 <p align="center">
-  <img src="images/mlops-architecture.png" alt="mlops-architecture" width="700"/>
+  <img src="images/mlops-architecture.png" alt="mlops-architecture" width="1000"/>
 </p>
 
 위 그림은 추천 모델의 학습과 재학습, 배포, 모니터링에 이르는 **AI 생애 주기 전체 흐름**을 나타냅니다.

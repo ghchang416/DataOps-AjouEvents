@@ -54,7 +54,7 @@
 | 데이터 저장 | MinIO, PostgreSQL |
 | 모델 학습 | PyTorch, MLflow |
 | 워크플로우 자동화 | Apache Airflow |
-| 모니터링 | Prometheus
+| 모니터링 | Prometheus, alertmanager |
 | 모델 서빙 | FastAPI, Redis |
 
 ---
@@ -65,9 +65,12 @@
 # 프로젝트 실행
 docker-compose up --build
 
+docker exec -it <spark-master-컨테이너명> spark-submit \
+  --master spark://spark:7077 \
+  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 \
+  /opt/bitnami/spark/work/stream_inference.py
+
+
 # Airflow UI 접속: http://localhost:8080
 # MLflow Tracking UI: http://localhost:5000
 ```
-
-🙌 기여자
-창경현 – AI 시스템 및 데이터 인프라 설계 / 구현

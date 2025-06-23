@@ -63,7 +63,7 @@ def train_mlp_model(**kwargs):
     
     feature_names = [col for col in df.columns if col not in target]
     import joblib
-    joblib.dump(feature_names, "preprocessors/feature_names.pkl")
+    joblib.dump(feature_names, "/opt/preprocessor/feature_names.pkl")
     
     # split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)

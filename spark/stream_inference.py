@@ -26,7 +26,7 @@ spark = SparkSession.builder \
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 # ✅ 전처리기 로딩
-ENCODER_DIR = "/opt/preprocessors"  # 볼륨 경로
+ENCODER_DIR = "/opt/preprocessor"  # 볼륨 경로
 sparse_features = [
     "id", "C1", "banner_pos",
     "site_id", "site_domain", "site_category",

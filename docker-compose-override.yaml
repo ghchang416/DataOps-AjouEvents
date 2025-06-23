@@ -5,6 +5,7 @@ services:
     container_name: minio
     restart: always
     volumes:
+      - ./create-bucket.sh:/usr/local/bin/create-bucket.sh
       - minio-data:/data
     ports:
       - 9000:9000
@@ -14,6 +15,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin_password}
       MINIO_BUCKETS: ${MINIO_BUCKET:-raw-data}
     command: server /data --console-address ":9001"
+    entrypoint: ["/bin/sh", "/usr/local/bin/create-bucket.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -39,7 +41,10 @@ services:
       - ${ALERTMANAGER_PROJ_DIR:-./alertmanager}/alertmanager.yml:/etc/alertmanager/alertmanager.yml
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.20.2
+    build:
+      context: ./mlflow
+      dockerfile: dockerfile.mlflow
+    image: mlflow-serving
     container_name: mlflow
     ports:
       - "5000:5000"
@@ -54,10 +59,16 @@ services:
       - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-admin}
       - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-admin_password}
     depends_on:
-      <<: *airflow-common-depends-on
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
   spark:
-    image: bitnami/spark:3.5.3
+    build:
+      context: ./spark
+      dockerfile: dockerfile.spark
+    image: spark-stream
     volumes:
       - ${PROJ_DIR:-.}/preprocessor:/opt/preprocessor
       - ${PROJ_DIR:-.}/etl:/opt/etl
@@ -81,7 +92,10 @@ services:
       - '4040:4040'
 
   spark-worker:
-    image: bitnami/spark:3.5.3
+    build:
+      context: ./spark
+      dockerfile: dockerfile.spark
+    image: spark-stream
     volumes:
       - ${SPARK_PROJ_DIR:-./spark}/working-dir:/opt/bitnami/spark/work
     environment:

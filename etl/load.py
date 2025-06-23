@@ -48,10 +48,8 @@ def build_feature_store(**context):
     dense_features = ['hour']
     sparse_features = [col for col in raw_data.columns if col not in dense_features + target]
 
-    os.makedirs("/opt/preprocessors", exist_ok=True)
-
     for feat in sparse_features:
-        encoder_path = f"/opt/preprocessors/{feat}_encoder.pkl"
+        encoder_path = f"/opt/preprocessor/{feat}_encoder.pkl"
         if os.path.exists(encoder_path):
             lbe = joblib.load(encoder_path)
             raw_data[feat] = lbe.transform(raw_data[feat].astype(str))
@@ -62,7 +60,7 @@ def build_feature_store(**context):
             raw_data[feat] = lbe.fit_transform(raw_data[feat].astype(str))
             joblib.dump(lbe, encoder_path)
 
-    scaler_path = "/opt/preprocessors/minmax_scaler.pkl"
+    scaler_path = "/opt/preprocessor/minmax_scaler.pkl"
     if os.path.exists(scaler_path):
         mms = joblib.load(scaler_path)
         raw_data[dense_features] = mms.transform(raw_data[dense_features])

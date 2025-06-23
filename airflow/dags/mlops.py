@@ -1,8 +1,8 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from datetime import datetime, timedelta
-from mlops.train import train_mlp_model
-from mlops.validate import validate_model
+from train import train_mlp_model
+from validate import validate_model
 
 from airflow.operators.empty import EmptyOperator
 from mlflow_provider.operators.registry import (

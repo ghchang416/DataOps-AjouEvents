@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
-from etl.extract import raw_data_upload_to_minio
-from etl.load import build_feature_store
+from extract import raw_data_upload_to_minio
+from load import build_feature_store
 
 default_args = {
     'owner': 'airflow',
